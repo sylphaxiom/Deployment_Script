@@ -539,7 +539,11 @@ def xtrnl_cmds(cmd):
         case 'play':
             print("Running playwright tests...")
             subprocess.check_call('npx playwright install', shell=True)
-            subprocess.check_call('npx playwright test --retries 2', shell=True)
+            try:
+                subprocess.check_call('npx playwright test --retries 2', shell=True)
+            except subprocess.CalledProcessError as e:
+                log.error(f'Playwright tests failed with error code {e.returncode}.')
+                print(f"Playwright tests failed with error code {e.returncode}. Please investigate.")
         case 'tsc':
             print("Running tsc -b for typescript build...")
             subprocess.check_call('npm run tsbuild', shell=True, cwd=PATH_BASE)
