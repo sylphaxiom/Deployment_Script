@@ -241,6 +241,7 @@ def check_files():
 # contents of the recyclebin. If called without an argument
 # the contents of the recycling bin are returned with no mods.
 def recyclebin(recycling=None):
+    log.debug(f'Entering recyclebin...')
     
     recycleBin = Path.join(PATH_BASE,"recycling.json")
     junk = None
@@ -260,6 +261,7 @@ def recyclebin(recycling=None):
                 junk = recycling
     
     # return the contents in case it is wanted.
+    log.debug(f'Junk being returned: {junk}')
     return junk
 
 # Loop through recycling, copy files to original location,
@@ -275,7 +277,7 @@ def cleanup():
     if not recycling:
         if not Path.exists(recycleBin):
             print(f"Looks like nothing needs cleaned up here... Guess I'll be leaving then.")
-            exit(0)
+            return
         else:
             with open(recycleBin, "r") as trash:
                 if trash:
