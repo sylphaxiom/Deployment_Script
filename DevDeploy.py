@@ -3,7 +3,6 @@ import posixpath as Unx
 import os
 import pathlib
 import os.path as Path
-import threading
 import subprocess
 import argparse
 import json
@@ -52,7 +51,7 @@ logPath = Path.join(logDir, f"DevDeploy_{MO}-{YR}.log")
 log = logging.getLogger(__name__)
 logging.basicConfig(filename=logPath, level=logging.DEBUG)
 
-print(f'-------------------- Initialized {time.ctime()} --------------------')
+log.debug(f'-------------------- Initialized {time.ctime()} --------------------')
 
 # Parse CLI arguments
 def parse_args():
@@ -158,6 +157,10 @@ def check_files():
     #     print("Oops, missing PROD or DEV, try again with one of those flags.")
     #     exit(0)
 
+    recycling = recyclebin()
+    if not recycling:
+        recycling = []
+
     # If there is a mods file, there must be mods
     # So let's make it multi-threaded...
     if Path.exists(MODS):
@@ -201,7 +204,6 @@ def check_files():
                 shutil.copyfile(src=file,dst=backup)
                 print(f"Original file {file} copied to {backup}")
             contents = ''
-            recycling = []
             # Open the original to search, change, and backup
             with open(file) as original:
                 log.debug(f'Entering file {file}...')
@@ -219,6 +221,7 @@ def check_files():
                         # Since we are searching line-by-line, there might be more 
                         # than one change in a file!
                         if file not in recycling:
+                            log.debug(f'File not found in recycling: File: {file} | recycling: {recycling}')
                             recycling.append(file)
                     else:
                         # No changes found so the new line is unchanged.
@@ -231,11 +234,16 @@ def check_files():
             print(f'Writing contents to original file to update.')
             with open(file,"w") as original:
                 original.write(contents)
-
-            # Dump the recycling to the recycling bin
-            recyclebin(recycling)
     else:
-        print("Mods file is not present, continuing...") 
+        print("Mods file is not present, continuing...")
+
+    log.debug(f'Recycling bin immediately prior to calling recyclebin: {recycling}')
+
+    # Dump the recycling to the recycling bin
+    newRecycling = recyclebin(recycling)
+    log.debug(f'Updated recycling bin: {newRecycling}')
+
+    log.debug(f'Before exiting check_files(), here is updated recyclebin:\n{newRecycling}') 
 
 # Adds an item to the recycling bin and returns the updated
 # contents of the recyclebin. If called without an argument
@@ -251,9 +259,10 @@ def recyclebin(recycling=None):
         # Since there is already something in recycling load or append it to what we have
         with open(recycleBin, 'r+') as trash:
             junk = json.load(trash)
-            if recycling:
+            if recycling and (recycling not in junk):
                 junk.append(recycling)
             json.dump(junk,trash)
+            log.debug(f'Junk after append and dump: {junk}')
     else:
         if recycling:
             with open(recycleBin, "x") as trash:
