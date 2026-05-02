@@ -11,6 +11,7 @@ import paramiko as Ftp
 import logging
 import datetime
 import time
+import stat
 
 # Important stuff first.
 start = time.monotonic()
@@ -518,28 +519,82 @@ def ftp_prod():
             sftp.put(file, Unx.join(REMOTE,file.name))
             print(f"{file.name} moved to {location} successfully" )
         if file.is_dir():
+            # Original code took 1419.8 sec to run. Testing Google AI suggested speed improvements.
+            # for path, dirs, files in os.walk(file):
+            #     for dir in dirs:
+            #         try:
+            #             winPath = Path.join(path,dir)
+            #             bits = pathlib.PureWindowsPath(winPath).relative_to(LOCAL_ROOT)
+            #             relPath = pathlib.PurePath.as_posix(pathlib.PureWindowsPath(bits))
+            #             remotePath = Unx.join(REMOTE,relPath)
+            #             sftp.listdir(remotePath)
+            #         except:
+            #             print(f"Remote directory {remotePath} is missing, attempting to create...")
+            #             try:
+            #                 sftp.mkdir(remotePath)
+            #             except:
+            #                 print(f"Well that didn't work, create the folder manually...")
+            #                 input("Press Enter to continue...")
+            #     for subfile in files:
+            #         if Path.isdir(subfile):
+            #             recurse_dir(subfile, REMOTE, path)
+            #         else:
+            #             pathlib.PureWindowsPath(PATH_BASE).anchor
+            #             winPath = Path.join(path,subfile)
+            #             bits = pathlib.PureWindowsPath(winPath).relative_to(LOCAL_ROOT)
+            #             relPath = pathlib.PurePath.as_posix(pathlib.PureWindowsPath(bits))
+            #             remotePath = Unx.join(REMOTE,relPath)
+            #             sftp.put( winPath, remotePath )
+            #             print(f"{subfile} moved to {remotePath} subdirectory {relPath} successfully" )
+
+            # Google AI suggested improvements for speed and efficiency:
+            # New run time with the suggested updates: 100.9 sec 
             for path, dirs, files in os.walk(file):
-                for dir in dirs:
-                    try:
-                        winPath = Path.join(path,dir)
-                        bits = pathlib.PureWindowsPath(winPath).relative_to(LOCAL_ROOT)
-                        relPath = pathlib.PurePath.as_posix(pathlib.PureWindowsPath(bits))
-                        remotePath = Unx.join(REMOTE,relPath)
-                        sftp.listdir(remotePath)
-                    except:
-                        print(f"Remote directory {remotePath} is missing, please add directory to continue...")
-                        input("Press Enter to continue...")
+                # --- Performance Optimization Start ---
+                # Calculate the current remote directory path
+                bits_dir = pathlib.PureWindowsPath(path).relative_to(LOCAL_ROOT)
+                relPath_dir = pathlib.PurePath.as_posix(bits_dir)
+                current_remote_dir = Unx.join(REMOTE, relPath_dir)
+
+                # Cache remote file attributes for this directory into a dictionary
+                remote_cache = {}
+                try:
+                    for attr in sftp.listdir_attr(current_remote_dir):
+                        remote_cache[attr.filename] = attr
+                except IOError:
+                    # Directory likely doesn't exist yet; cache remains empty
+                    pass
+                # --- Performance Optimization End ---
+
+                for dir_name in dirs:
+                    remotePath = Unx.join(current_remote_dir, dir_name)
+                    if dir_name not in remote_cache or not stat.S_ISDIR(remote_cache[dir_name].st_mode):
+                        print(f"Remote directory {remotePath} missing, attempting to create...")
+                        try:
+                            sftp.mkdir(remotePath)
+                        except Exception:
+                            print(f"Failed to create {remotePath}. Create manually.")
+                            input("Press Enter to continue...")
+
                 for subfile in files:
-                    if Path.isdir(subfile):
-                        recurse_dir(subfile, REMOTE, path)
-                    else:
-                        pathlib.PureWindowsPath(PATH_BASE).anchor
-                        winPath = Path.join(path,subfile)
-                        bits = pathlib.PureWindowsPath(winPath).relative_to(LOCAL_ROOT)
-                        relPath = pathlib.PurePath.as_posix(pathlib.PureWindowsPath(bits))
-                        remotePath = Unx.join(REMOTE,relPath)
-                        sftp.put( winPath, remotePath )
-                        print(f"{subfile} moved to {remotePath} subdirectory {relPath} successfully" )
+                    winPath = Path.join(path, subfile)
+                    remotePath = Unx.join(current_remote_dir, subfile)
+                    
+                    local_stat = os.stat(winPath)
+                    should_upload = True
+
+                    # Check the cache instead of making a new network request
+                    if subfile in remote_cache:
+                        r_attr = remote_cache[subfile]
+                        # Compare size and modification time (skip if remote is same size and newer/equal)
+                        if r_attr.st_size == local_stat.st_size and \
+                        r_attr.st_mtime >= int(local_stat.st_mtime):
+                            should_upload = False
+                            print(f"Skipping {subfile} (unchanged)")
+
+                    if should_upload:
+                        sftp.put(winPath, remotePath)
+                        print(f"Uploaded {subfile} to {remotePath}")
 
 def xtrnl_cmds(cmd):
     log.debug(f'Entering xtrnl_cmds() to execute playwright tests in a separate thread as well as other external commands...')
