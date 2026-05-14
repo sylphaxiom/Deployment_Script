@@ -459,6 +459,137 @@ def deploy_files():
     print(f"Project successfully deployed to development.")
     return
 
+def sync_bucket(project_bucket_path):
+    central_path = Path.join(API_BASE, "bucket.php")
+
+    with open(central_path, 'r') as f:
+        central_lines = f.readlines()
+    with open(project_bucket_path, 'r') as f:
+        project_lines = f.readlines()
+
+    central_content = {l.strip() for l in central_lines if l.strip()}
+
+    # Parse project file into typed segments: ('prop'|'method', [lines])
+    # A segment = the // comment(s) immediately preceding a declaration + the
+    # declaration itself (and full body for methods). This preserves the comment
+    # convention and lets us insert each segment into the correct zone of central.
+    segments = []
+    pending_comments = []
+    current_seg_lines = []
+    in_method = False
+    saw_open_brace = False
+    brace_depth = 0
+
+    for line in project_lines:
+        s = line.strip()
+
+        # Skip file boilerplate and block-comment header
+        if not s or s in ('<?php', '?>'):
+            continue
+        if s.startswith('/*') or s.startswith('*') or s == '*/':
+            continue
+        # Skip class declaration and class-level braces (not inside a method)
+        if s.startswith('class ') or (not in_method and s in ('{', '}')):
+            continue
+
+        # Inside a method body: accumulate until the matching closing brace
+        if in_method:
+            current_seg_lines.append(line)
+            brace_depth += s.count('{') - s.count('}')
+            if s.count('{') > 0:
+                saw_open_brace = True
+            if saw_open_brace and brace_depth <= 0:
+                segments.append(('method', current_seg_lines[:]))
+                current_seg_lines = []
+                in_method = False
+                saw_open_brace = False
+                brace_depth = 0
+            continue
+
+        # Comment line: hold until we know what it precedes
+        if s.startswith('//'):
+            pending_comments.append(line)
+            continue
+
+        # Method declaration — begin accumulating body
+        if 'public static function' in s:
+            current_seg_lines = pending_comments + [line]
+            pending_comments = []
+            in_method = True
+            brace_depth = s.count('{') - s.count('}')
+            if brace_depth > 0:
+                saw_open_brace = True
+            continue
+
+        # Property declaration (single line)
+        if 'private static $' in s or 'protected static $' in s:
+            segments.append(('prop', pending_comments + [line]))
+            pending_comments = []
+            continue
+
+        # Unrecognized line — discard any held comments
+        pending_comments = []
+
+    # Filter: skip segments whose key declaration already exists in central.
+    # For methods include the full body; for properties strip lines already present.
+    new_props = []
+    new_methods = []
+
+    for seg_type, seg_lines in segments:
+        if seg_type == 'method':
+            decl = next((l for l in seg_lines if 'public static function' in l), None)
+            if decl and decl.strip() in central_content:
+                continue  # method already in central
+            # New method: keep all code lines; drop any comments duplicated in central
+            filtered = [l for l in seg_lines
+                        if not l.strip().startswith('//') or l.strip() not in central_content]
+            new_methods.extend(filtered + ['\n'])
+        else:
+            prop = next((l for l in seg_lines if 'private static $' in l or 'protected static $' in l), None)
+            if prop and prop.strip() in central_content:
+                continue  # property already in central
+            # New property: drop any lines (e.g. reused comment) already in central
+            new_props.extend(l for l in seg_lines if l.strip() not in central_content)
+
+    if not new_props and not new_methods:
+        print("bucket.php: project has no new content, central unchanged.")
+        return central_path
+
+    # Locate insertion points in central:
+    #   prop_insert_idx  — just before the first method section (its leading comment if any)
+    #   class_close_idx  — the class-closing }, which is the last } in the file
+    prop_insert_idx = None
+    class_close_idx = None
+
+    for i, line in enumerate(central_lines):
+        s = line.strip()
+        if prop_insert_idx is None and 'public static function' in s:
+            prop_insert_idx = i
+            j = i - 1
+            while j >= 0 and central_lines[j].strip().startswith('//'):
+                prop_insert_idx = j
+                j -= 1
+        if s == '}':
+            class_close_idx = i  # keep updating — last } wins (class close)
+
+    result = list(central_lines)
+
+    # Insert methods first (higher index) so the lower prop index stays valid
+    if new_methods and class_close_idx is not None:
+        result[class_close_idx:class_close_idx] = ['\n'] + new_methods
+
+    if new_props:
+        idx = prop_insert_idx if prop_insert_idx is not None else class_close_idx
+        if idx is not None:
+            result[idx:idx] = new_props + ['\n']
+
+    with open(central_path, 'w') as f:
+        f.writelines(result)
+
+    log.debug(f'sync_bucket: inserted {len(new_props)} property line(s), {len(new_methods)} method line(s)')
+    print(f"bucket.php: merged {len(new_props)} new property line(s) and {len(new_methods)} new method line(s) into central.")
+    return central_path
+
 def ftp_prod():
 
     KEY_PATH = Path.realpath("C:\\Users\\image\\.ssh\\home_ssh")
@@ -509,8 +640,11 @@ def ftp_prod():
                 print(f"{file} moved to {remotePath} subdirectory {relPath} successfully" )
     dir = os.scandir( LOCAL_ROOT )
     for file in dir:
-        if file.name in ["bucket.php","kothis.DB_make.sql","sylphaxiom.DB_make.sql"]:
+        if file.name in ["bucket.php","kothis.DB_make.sql","sylphaxiom.DB_make.sql","yeguild.DB_make.sql"]:
             if file.name == "bucket.php":
+                bucket_local = sync_bucket(Path.join(LOCAL_ROOT, file.name))
+                sftp.put(bucket_local, Unx.join(API_SECURE, file.name))
+                print(f"bucket.php synced and deployed to {API_SECURE} successfully")
                 continue
             sftp.put(Path.join(LOCAL_ROOT,file.name), Unx.join(API_SECURE,file.name))
             print( f"{file.name} moved to {location} successfully" )
@@ -519,36 +653,6 @@ def ftp_prod():
             sftp.put(file, Unx.join(REMOTE,file.name))
             print(f"{file.name} moved to {location} successfully" )
         if file.is_dir():
-            # Original code took 1419.8 sec to run. Testing Google AI suggested speed improvements.
-            # for path, dirs, files in os.walk(file):
-            #     for dir in dirs:
-            #         try:
-            #             winPath = Path.join(path,dir)
-            #             bits = pathlib.PureWindowsPath(winPath).relative_to(LOCAL_ROOT)
-            #             relPath = pathlib.PurePath.as_posix(pathlib.PureWindowsPath(bits))
-            #             remotePath = Unx.join(REMOTE,relPath)
-            #             sftp.listdir(remotePath)
-            #         except:
-            #             print(f"Remote directory {remotePath} is missing, attempting to create...")
-            #             try:
-            #                 sftp.mkdir(remotePath)
-            #             except:
-            #                 print(f"Well that didn't work, create the folder manually...")
-            #                 input("Press Enter to continue...")
-            #     for subfile in files:
-            #         if Path.isdir(subfile):
-            #             recurse_dir(subfile, REMOTE, path)
-            #         else:
-            #             pathlib.PureWindowsPath(PATH_BASE).anchor
-            #             winPath = Path.join(path,subfile)
-            #             bits = pathlib.PureWindowsPath(winPath).relative_to(LOCAL_ROOT)
-            #             relPath = pathlib.PurePath.as_posix(pathlib.PureWindowsPath(bits))
-            #             remotePath = Unx.join(REMOTE,relPath)
-            #             sftp.put( winPath, remotePath )
-            #             print(f"{subfile} moved to {remotePath} subdirectory {relPath} successfully" )
-
-            # Google AI suggested improvements for speed and efficiency:
-            # New run time with the suggested updates: 100.9 sec 
             for path, dirs, files in os.walk(file):
                 # --- Performance Optimization Start ---
                 # Calculate the current remote directory path
