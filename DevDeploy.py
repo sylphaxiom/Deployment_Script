@@ -16,29 +16,25 @@ trash = ''
 
 # Refactoring notes:
 
-# 1. Break into modules
+# 1. Break into modules - DONE
 # Possibly considering taking the functions and making them their own modules.
 # I can call them when needed, they have their own isolated files. Right now
 # they're all here and it is getting a bit annoying to update. Breaking them
 # out might make things easier and cleaner. Each function gets it's own file
 # and the main file just calls them and includes any small utility functions.
 
-# 2. Base paths from input flags
-# Since I use the DEV, PROD, and API I can create the base paths from the
-# flag that gets passed to the script. That should reduce hard-coded paths.
-
-# 3. Remove WAMP
+# 2. Remove WAMP
 # I don't really need the WAMP stuff since I really don't use that. So it is
 # probably just extra complexity I don't need. I think I am going to remove 
 # it during the re-factor.
 
-# 4. Useful logging
+# 3. Useful logging
 # Logging is somewhat of a mess at the moment. I want to make the CLI feedback
 # more direct and put more of the details in the logs. I think I need to come
 # up with a better logging system and I don't think my rotation is working as
 # it should, but I will check that one.
 
-# 5. Improve error handling
+# 4. Improve error handling
 # The script just bombs and stops when there is an issue with the build. I need
 # to more gracefully handle that error as well as any other errors like from 
 # Playwright or whatever. 
