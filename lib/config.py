@@ -49,7 +49,7 @@ class Config:
     a_cache: str = ""
 
     def __post_init__(self):
-        path_base = Path.join(ROOT_BASE, self.project)
+        self.path_base = Path.join(ROOT_BASE, self.project)
         self.dev_path  = Path.join(DEV_BASE, self.project)
         self.prod_path = Path.join(PROD_BASE, self.project)
         self.wamp_path = Path.join(WAMP_BASE, self.project)

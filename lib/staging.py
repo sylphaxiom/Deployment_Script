@@ -18,7 +18,7 @@ def cache_files(cfg):
         # Move files from prod to cache
         for item in os.listdir(cfg.prod_path):
             src = Path.join(cfg.prod_path, item)
-            dest = Path.join(cfg.pCache, item)
+            dest = Path.join(cfg.p_cache, item)
             try:
                 shutil.move(src, dest)
             except Exception as e:
@@ -37,7 +37,7 @@ def cache_files(cfg):
         # Copy files from api to cache
         for item in os.listdir(cfg.api_path):
             src = Path.join(cfg.api_path, item)
-            dest = Path.join(cfg.aCache, item)
+            dest = Path.join(cfg.a_cache, item)
             try:
                 shutil.move(src, dest)
             except Exception as e:
@@ -50,7 +50,7 @@ def cache_files(cfg):
     # Copy files from dev to cache
     for item in os.listdir(cfg.dev_path):
         src = Path.join(cfg.dev_path, item)
-        dest = Path.join(cfg.dCache, item)
+        dest = Path.join(cfg.d_cache, item)
         try:
             shutil.move(src, dest)
         except Exception as e:
@@ -61,7 +61,7 @@ def cache_files(cfg):
     # Copy files from wamp to cache
     for item in os.listdir(cfg.wamp_path):
         src = Path.join(cfg.wamp_path, item)
-        dest = Path.join(cfg.wCache, item)
+        dest = Path.join(cfg.w_cache, item)
         try:
             shutil.move(src, dest)
         except Exception as e:
@@ -119,7 +119,7 @@ def deploy_files(cfg):
         print(f"Project successfully deployed to production.")
         return
     
-    build_path = Path.join(cfg.build_path, "client\\")
+    build_path = Path.join(cfg.path_base, "build\\client\\")
 
     if not Path.exists(cfg.dev_path):
         print(f"Development path '{cfg.dev_path}' does not exist.")

@@ -217,8 +217,13 @@ def ftp_prod(cfg):
                     for attr in sftp.listdir_attr(current_remote_dir):
                         remote_cache[attr.filename] = attr
                 except IOError:
-                    # Directory likely doesn't exist yet; cache remains empty
-                    pass
+                    # Directory doesn't exist yet — create it before proceeding
+                    try:
+                        sftp.mkdir(current_remote_dir)
+                        print(f"Created remote directory {current_remote_dir}")
+                    except Exception:
+                        print(f"Failed to create {current_remote_dir}. Create manually and press Enter.")
+                        input()
                 # --- Performance Optimization End ---
 
                 for dir_name in dirs:
@@ -234,7 +239,6 @@ def ftp_prod(cfg):
                 for subfile in files:
                     winPath = Path.join(path, subfile)
                     remotePath = Unx.join(current_remote_dir, subfile)
-                    
                     local_stat = os.stat(winPath)
                     should_upload = True
 

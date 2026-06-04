@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 def recyclebin(cfg, recycling=None):
     log.debug(f'Entering recyclebin...')
     
-    recycleBin = Path.join(cfg.pathBase,"recycling.json")
+    recycleBin = Path.join(cfg.path_base,"recycling.json")
     junk = None
 
     if Path.exists(recycleBin):
@@ -41,8 +41,8 @@ def cleanup(cfg):
 
     recycling = recyclebin(cfg)
 
-    TEMP = Path.join(cfg.pathBase, "temp\\")
-    recycleBin = Path.join(cfg.pathBase,"recycling.json")
+    TEMP = Path.join(cfg.path_base, "temp\\")
+    recycleBin = Path.join(cfg.path_base,"recycling.json")
 
     # IF recycling wasn't passed in, look for it
     if not recycling:
@@ -75,8 +75,8 @@ def cleanup(cfg):
     except FileNotFoundError:
         print("TMP directory or recycleBin are missing, which is ok.")
     
-    os.chdir(cfg.pathBase)
-    subprocess.check_call('npm run clean', shell=True, cwd=cfg.pathBase)    
+    os.chdir(cfg.path_base)
+    subprocess.check_call('npm run clean', shell=True, cwd=cfg.path_base)    
     print("Cleanup complete")
 
 
@@ -94,7 +94,7 @@ def check_files(cfg):
     # mods.json which will contain a list of dicts as 
     # {filename:"<file>",search:"<search>",update:"<update>",PROD?:bool,DEV?:bool}
     # base path is assumed to be "/src/"
-    MODS = Path.join(cfg.pathBase,"mods.json")
+    MODS = Path.join(cfg.path_base,"mods.json")
 
     # if CHECK and PROD:
     #     print("Checking Production...")
@@ -106,7 +106,7 @@ def check_files(cfg):
     #     print("Oops, missing PROD or DEV, try again with one of those flags.")
     #     exit(0)
 
-    recycling = recyclebin()
+    recycling = recyclebin(cfg)
     if not recycling:
         recycling = []
 
@@ -136,8 +136,8 @@ def check_files(cfg):
             log.debug(f'Processing mod: {mod}')
 
             ### file operations for each mod ###
-            SRC = Path.join(cfg.pathBase,"src\\")
-            TEMP = Path.join(cfg.pathBase,"temp\\")
+            SRC = Path.join(cfg.path_base,"src\\")
+            TEMP = Path.join(cfg.path_base,"temp\\")
             if not Path.exists(TEMP):
                 os.mkdir(TEMP)
 
@@ -189,7 +189,7 @@ def check_files(cfg):
     log.debug(f'Recycling bin immediately prior to calling recyclebin: {recycling}')
 
     # Dump the recycling to the recycling bin
-    newRecycling = recyclebin(recycling)
+    newRecycling = recyclebin(cfg, recycling)
     log.debug(f'Updated recycling bin: {newRecycling}')
 
     log.debug(f'Before exiting check_files(), here is updated recyclebin:\n{newRecycling}') 
