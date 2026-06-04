@@ -13,6 +13,10 @@ import datetime
 import time
 import stat
 
+from lib import setup_logging, parse_args
+from lib.config import ROOT_BASE, WAMP_BASE, DEV_BASE, PROD_BASE, API_BASE, DEV_CACHE, WAMP_CACHE, PROD_CACHE, API_CACHE, PROD_REMOTE, DEV_REMOTE, DND_REMOTE, API_SECURE, LOG_DIR, ARC_DIR
+log = logging.getLogger(__name__)
+
 # Important stuff first.
 start = time.monotonic()
 trash = ''
@@ -47,120 +51,125 @@ trash = ''
 # Playwright or whatever. 
 
 
-# Check and make Windows paths
-ROOT_BASE = Path.abspath("C:\\Users\\image\\code_projects")
-WAMP_BASE = Path.abspath("D:\\wmap64\\www\\Project")
+# # Check and make Windows paths
+# ROOT_BASE = Path.abspath("C:\\Users\\image\\code_projects")
+# WAMP_BASE = Path.abspath("D:\\wmap64\\www\\Project")
     
-DEV_BASE = Path.join(ROOT_BASE,"_DEV\\")
-PROD_BASE = Path.join(ROOT_BASE,"_PROD\\")
-API_BASE = Path.join(ROOT_BASE,"_API\\")
+# DEV_BASE = Path.join(ROOT_BASE,"_DEV\\")
+# PROD_BASE = Path.join(ROOT_BASE,"_PROD\\")
+# API_BASE = Path.join(ROOT_BASE,"_API\\")
 
-DEV_CACHE = Path.join(DEV_BASE,"_cache\\")
-WAMP_CACHE = Path.join(WAMP_BASE,"_cache\\")
-PROD_CACHE = Path.join(PROD_BASE,"_cache\\")
-API_CACHE =  Path.join(API_BASE,"_cache\\")
+# DEV_CACHE = Path.join(DEV_BASE,"_cache\\")
+# WAMP_CACHE = Path.join(WAMP_BASE,"_cache\\")
+# PROD_CACHE = Path.join(PROD_BASE,"_cache\\")
+# API_CACHE =  Path.join(API_BASE,"_cache\\")
 
-# Unix style paths
-PROD_REMOTE = Unx.realpath("/home2/xikihgmy/public_html/")
-DEV_REMOTE = Unx.realpath("/home2/xikihgmy/test/")
-DND_REMOTE = Unx.realpath("/home2/xikihgmy/dnd/")
-API_SECURE = Unx.realpath("/home2/xikihgmy/includes/")
+# # Unix style paths
+# PROD_REMOTE = Unx.realpath("/home2/xikihgmy/public_html/")
+# DEV_REMOTE = Unx.realpath("/home2/xikihgmy/test/")
+# DND_REMOTE = Unx.realpath("/home2/xikihgmy/dnd/")
+# API_SECURE = Unx.realpath("/home2/xikihgmy/includes/")
 
+### Moved to log_setup.py ###
 # Check log directory and create if missing
 # Define base path constants
-logDir = Path.join(ROOT_BASE,"Logs")
-arcDir = Path.join(ROOT_BASE,"Archive")
-if not Path.exists(logDir):
-    print(f"Creating log directory '{logDir}'...")
-    os.makedirs(logDir)
-if not Path.exists(arcDir):
-    print(f"Creating archive directory '{arcDir}'...")
-    os.makedirs(arcDir)
-MO = datetime.date.today().month
-YR = datetime.date.today().year
-logPath = Path.join(logDir, f"DevDeploy_{MO}-{YR}.log")
-log = logging.getLogger(__name__)
-logging.basicConfig(filename=logPath, level=logging.DEBUG)
+# logDir = Path.join(ROOT_BASE,"Logs")
+# arcDir = Path.join(ROOT_BASE,"Archive")
+# if not Path.exists(logDir):
+#     print(f"Creating log directory '{logDir}'...")
+#     os.makedirs(logDir)
+# if not Path.exists(arcDir):
+#     print(f"Creating archive directory '{arcDir}'...")
+#     os.makedirs(arcDir)
+# MO = datetime.date.today().month
+# YR = datetime.date.today().year
+# logPath = Path.join(logDir, f"DevDeploy_{MO}-{YR}.log")
+# log = logging.getLogger(__name__)
+# logging.basicConfig(filename=logPath, level=logging.DEBUG)
 
-log.debug(f'-------------------- Initialized {time.ctime()} --------------------')
+# log.debug(f'-------------------- Initialized {time.ctime()} --------------------')
 
+### Moved to config.py ###
 # Parse CLI arguments
-def parse_args():
+# def parse_args():
 
-    # Make them global
-    global PROD
-    global API
-    global DEV
-    global SKIP
-    global PROJECT
+#     # Make them global
+#     global PROD
+#     global API
+#     global DEV
+#     global SKIP
+#     global PROJECT
 
-    parser = argparse.ArgumentParser(prog='deploy-dev', description="Deploy project from dev to wamp for testing.")
-    parser.add_argument("project", type=str, help="Name of the project to deploy.")
-    parser.add_argument("--PROD", action="store_true", help="Deploy to production server instead of DEV.")
-    parser.add_argument("--API", action="store_true", help="Deploy APIs")
-    parser.add_argument("--DEV", action="store_true", help="Deploy to Dev environment on web host.")
-    parser.add_argument("--SKIP", action="store_true", help="Skip Playwright tests.")
-    args = parser.parse_args()
+#     parser = argparse.ArgumentParser(prog='deploy-dev', description="Deploy project from dev to wamp for testing.")
+#     parser.add_argument("project", type=str, help="Name of the project to deploy.")
+#     parser.add_argument("--PROD", action="store_true", help="Deploy to production server instead of DEV.")
+#     parser.add_argument("--API", action="store_true", help="Deploy APIs")
+#     parser.add_argument("--DEV", action="store_true", help="Deploy to Dev environment on web host.")
+#     parser.add_argument("--SKIP", action="store_true", help="Skip Playwright tests.")
+#     args = parser.parse_args()
 
-    PROD = args.PROD
-    API = args.API
-    DEV = args.DEV
-    SKIP = args.SKIP
-    PROJECT = args.project
+#     PROD = args.PROD
+#     API = args.API
+#     DEV = args.DEV
+#     SKIP = args.SKIP
+#     PROJECT = args.project
 
-    log.debug(f'Variable dump is: PROD: {PROD} | API: {API} | DEV: {DEV} | SKIP: {SKIP} | PROJECT: {PROJECT}')
+#     log.debug(f'Variable dump is: PROD: {PROD} | API: {API} | DEV: {DEV} | SKIP: {SKIP} | PROJECT: {PROJECT}')
 
-    setup(PROJECT)
+#     setup(PROJECT)
 
 # Loop through potential local paths and create if missing
 # IF PROD -> change dir to project root ROOT_BASE + project_name
-def setup(PROJECT):
+### Contents moved to modules ###
+# def setup(PROJECT):
 
+    ### Moved to log_setup.py ###
     # Log rotation
-    oMO = MO - 1 if MO > 1 else 12
-    oYR = YR if MO > 1 else YR - 1
-    oldLog = Path.join(logDir, f"DevDeploy_{oMO}-{oYR}.log")
-    if Path.exists(oldLog):
-        print(f"Rotating log file '{oldLog}' to archive...")
-        shutil.move(oldLog, Path.join(arcDir, f"DevDeploy_{oMO}-{oYR}.log"))
+    # oMO = MO - 1 if MO > 1 else 12
+    # oYR = YR if MO > 1 else YR - 1
+    # oldLog = Path.join(logDir, f"DevDeploy_{oMO}-{oYR}.log")
+    # if Path.exists(oldLog):
+    #     print(f"Rotating log file '{oldLog}' to archive...")
+    #     shutil.move(oldLog, Path.join(arcDir, f"DevDeploy_{oMO}-{oYR}.log"))
 
-    global DEV_PATH
-    global PROD_PATH
-    global WAMP_PATH
-    global API_PATH
+    ### Moved to config.py ###
+    # global DEV_PATH
+    # global PROD_PATH
+    # global WAMP_PATH
+    # global API_PATH
 
-    global dCache
-    global wCache
-    global pCache
-    global aCache
+    # global dCache
+    # global wCache
+    # global pCache
+    # global aCache
 
-    # Project root path
-    global PATH_BASE
-    PATH_BASE = Path.join(ROOT_BASE, PROJECT)
+    # # Project root path
+    # global PATH_BASE
+    # PATH_BASE = Path.join(ROOT_BASE, PROJECT)
         
-    # Target paths
-    DEV_PATH = Path.join(DEV_BASE,PROJECT)
-    PROD_PATH = Path.join(PROD_BASE,PROJECT)
-    WAMP_PATH = Path.join(WAMP_BASE,PROJECT)
-    API_PATH = Path.join(API_BASE,PROJECT)
+    # # Target paths
+    # DEV_PATH = Path.join(DEV_BASE,PROJECT)
+    # PROD_PATH = Path.join(PROD_BASE,PROJECT)
+    # WAMP_PATH = Path.join(WAMP_BASE,PROJECT)
+    # API_PATH = Path.join(API_BASE,PROJECT)
     
-    # Cache paths
-    dCache = Path.join(DEV_CACHE,PROJECT)
-    wCache = Path.join(WAMP_CACHE,PROJECT)
-    pCache = Path.join(PROD_CACHE,PROJECT)
-    aCache = Path.join(API_CACHE,PROJECT)
+    # # Cache paths
+    # dCache = Path.join(DEV_CACHE,PROJECT)
+    # wCache = Path.join(WAMP_CACHE,PROJECT)
+    # pCache = Path.join(PROD_CACHE,PROJECT)
+    # aCache = Path.join(API_CACHE,PROJECT)
 
-    # Check each path and create if it isn't there
-    try:
-        for base in [DEV_PATH, PROD_PATH, WAMP_PATH, API_PATH, dCache, wCache, pCache, aCache]:
-            if not Path.exists(base):
-                print(f"Creating project directory '{base}'...")
-                os.makedirs(base)
-    except OSError as e:
-        log.error(f'Something went wrong while checking and creating the base directories.')
-        log.error(f'Additional error information: {e}')
-        print('An error has occurred in setup(), please see the logs for details.')
-        raise e
+    # # Check each path and create if it isn't there
+    # try:
+    #     for base in [DEV_PATH, PROD_PATH, WAMP_PATH, API_PATH, dCache, wCache, pCache, aCache]:
+    #         if not Path.exists(base):
+    #             print(f"Creating project directory '{base}'...")
+    #             os.makedirs(base)
+    # except OSError as e:
+    #     log.error(f'Something went wrong while checking and creating the base directories.')
+    #     log.error(f'Additional error information: {e}')
+    #     print('An error has occurred in setup(), please see the logs for details.')
+    #     raise e
 
 # Check files for any modifications found in mods.json
 # Modify the files according to the JSON and add to recycle.json
@@ -755,10 +764,11 @@ def xtrnl_cmds(cmd):
             subprocess.check_call('npm run rrbuild', shell=True, cwd=PATH_BASE)
 
 if __name__ == "__main__":
+    setup_logging(LOG_DIR, ARC_DIR)
     # Parse the arguments and setup for the script
-    parse_args()
+    cfg = parse_args()
     xtrnl_cmds('tsc')
-    if not SKIP and PROD:
+    if not cfg.skip and cfg.prod:
         log.debug(f'Entering not SKIP and PROD to run playwright tests...')
         xtrnl_cmds('play')
         print(f'Playwright run has been initiated...')
