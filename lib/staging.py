@@ -21,7 +21,7 @@ def cache_files(cfg):
             dest = Path.join(cfg.p_cache, item)
             try:
                 shutil.move(src, dest)
-            except Exception as e:
+            except Exception:
                 print(f"Destination '{dest}' present, dumping contents and trying again...")
                 shutil.rmtree(dest)
                 shutil.move(src, dest)
@@ -40,7 +40,7 @@ def cache_files(cfg):
             dest = Path.join(cfg.a_cache, item)
             try:
                 shutil.move(src, dest)
-            except Exception as e:
+            except Exception:
                 print(f"Destination '{dest}' present, dumping contents and trying again...")
                 shutil.rmtree(dest)
                 shutil.move(src, dest)
@@ -53,7 +53,7 @@ def cache_files(cfg):
         dest = Path.join(cfg.d_cache, item)
         try:
             shutil.move(src, dest)
-        except Exception as e:
+        except Exception:
             print(f"Destination '{dest}' present, dumping contents and trying again...")
             shutil.rmtree(dest)
             shutil.move(src, dest)
@@ -64,7 +64,7 @@ def cache_files(cfg):
         dest = Path.join(cfg.w_cache, item)
         try:
             shutil.move(src, dest)
-        except Exception as e:
+        except Exception:
             print(f"Destination '{dest}' present, dumping contents and trying again...")
             shutil.rmtree(dest)
             shutil.move(src, dest)
@@ -79,7 +79,7 @@ def deploy_files(cfg):
 
     if cfg.prod:
         print(f'Production flag detected, processing production paths and moving files...')
-        build_path = Path.join(cfg.build_path, "build\\client\\")
+        build_path = Path.join(cfg.path_base, "build\\client\\")
 
         if not Path.exists(cfg.prod_path):
             print(f"Production path '{cfg.prod_path}' does not exist.")
@@ -99,7 +99,7 @@ def deploy_files(cfg):
         return
     
     if cfg.api:
-        build_path = Path.join(cfg.api_path, "api\\v1\\")
+        build_path = Path.join(cfg.path_base, "src\\api\\v1\\")
 
         if not Path.exists(cfg.api_path):
             print(f"API path '{cfg.api_path}' does not exist.")
