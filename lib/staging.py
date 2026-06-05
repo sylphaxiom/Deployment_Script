@@ -79,7 +79,7 @@ def deploy_files(cfg):
 
     if cfg.prod:
         print(f'Production flag detected, processing production paths and moving files...')
-        build_path = Path.join(cfg.build_path, "client\\")
+        build_path = Path.join(cfg.build_path, "build\\client\\")
 
         if not Path.exists(cfg.prod_path):
             print(f"Production path '{cfg.prod_path}' does not exist.")
@@ -99,7 +99,7 @@ def deploy_files(cfg):
         return
     
     if cfg.api:
-        build_path = Path.join(cfg.api_path, "v1\\")
+        build_path = Path.join(cfg.api_path, "api\\v1\\")
 
         if not Path.exists(cfg.api_path):
             print(f"API path '{cfg.api_path}' does not exist.")

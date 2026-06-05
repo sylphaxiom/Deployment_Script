@@ -1,3 +1,5 @@
 .vscode/launch.json
 REFACTOR_PLAN.md
 .env
+__pycache__/
+*.pyc
