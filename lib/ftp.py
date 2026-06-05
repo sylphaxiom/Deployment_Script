@@ -11,7 +11,7 @@ from lib.config import PROD_REMOTE, DEV_REMOTE, DND_REMOTE, API_SECURE
 log = logging.getLogger(__name__)
 
 def sync_bucket(cfg, project_bucket_path):
-    central_path = Path.join(cfg.api_base, "bucket.php")
+    central_path = Path.join(cfg.api_path, "bucket.php")
 
     with open(central_path, 'r') as f:
         central_lines = f.readlines()
