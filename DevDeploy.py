@@ -43,13 +43,16 @@ trash = ''
 if __name__ == "__main__":
     setup_logging(LOG_DIR, ARC_DIR)
     cfg = parse_args()
-    xtrnl_cmds(cfg, 'tsc')
-    if not cfg.skip and cfg.prod:
-        xtrnl_cmds(cfg, 'play')
+    if not cfg.api:
+        xtrnl_cmds(cfg, 'tsc')
+        if not cfg.skip and cfg.prod:
+            xtrnl_cmds(cfg, 'play')
     check_files(cfg)
-    xtrnl_cmds(cfg, 'build')
+    if not cfg.api:
+        xtrnl_cmds(cfg, 'build')
     cache_files(cfg)
     deploy_files(cfg)
     ftp_prod(cfg)
     cleanup(cfg)
-    xtrnl_cmds(cfg, 'clean')
+    if not cfg.api:
+        xtrnl_cmds(cfg, 'clean')
