@@ -5,13 +5,23 @@ import logging
 import posixpath as Unx
 import stat
 import pathlib
+import re
 
-from lib.config import PROD_REMOTE, DEV_REMOTE, DND_REMOTE, API_SECURE
+from lib.config import PROD_REMOTE, DEV_REMOTE, DND_REMOTE, API_SECURE, MASTER_BUCKET
 
 log = logging.getLogger(__name__)
 
+PROP_NAME_RE = re.compile(r'\$(\w+)')
+
 def sync_bucket(cfg, project_bucket_path):
-    central_path = Path.join(cfg.api_path, "bucket.php")
+    central_path = MASTER_BUCKET
+
+    if not Path.exists(central_path):
+        raise FileNotFoundError(
+            f"Master bucket.php not found at '{central_path}'. "
+            "This file aggregates every project's bucket.php and must "
+            "already exist — restore it from the server before deploying."
+        )
 
     with open(central_path, 'r') as f:
         central_lines = f.readlines()
@@ -19,6 +29,17 @@ def sync_bucket(cfg, project_bucket_path):
         project_lines = f.readlines()
 
     central_content = {l.strip() for l in central_lines if l.strip()}
+
+    # Map property name -> line index in central, so a same-named property
+    # with a different value is recognized as a value update rather than
+    # appended as a second (fatal, duplicate) declaration.
+    central_prop_index = {}
+    for i, line in enumerate(central_lines):
+        s = line.strip()
+        if 'private static $' in s or 'protected static $' in s:
+            m = PROP_NAME_RE.search(s)
+            if m:
+                central_prop_index[m.group(1)] = i
 
     # Parse project file into typed segments: ('prop'|'method', [lines])
     # A segment = the // comment(s) immediately preceding a declaration + the
@@ -85,6 +106,7 @@ def sync_bucket(cfg, project_bucket_path):
     # For methods include the full body; for properties strip lines already present.
     new_props = []
     new_methods = []
+    prop_updates = []  # (central_line_index, new_line) — same name, changed value
 
     for seg_type, seg_lines in segments:
         if seg_type == 'method':
@@ -98,13 +120,31 @@ def sync_bucket(cfg, project_bucket_path):
         else:
             prop = next((l for l in seg_lines if 'private static $' in l or 'protected static $' in l), None)
             if prop and prop.strip() in central_content:
-                continue  # property already in central
+                continue  # property already in central, identical value
+            if prop:
+                m = PROP_NAME_RE.search(prop.strip())
+                name = m.group(1) if m else None
+                if name and name in central_prop_index:
+                    # Same property name, different value: latest deploy wins,
+                    # but this can silently change a value another project
+                    # relies on, so it's always flagged loudly.
+                    idx = central_prop_index[name]
+                    old_line = central_lines[idx].strip()
+                    print(f"WARNING: bucket.php property ${name} value changed by this deploy.")
+                    print(f"  old: {old_line}")
+                    print(f"  new: {prop.strip()}")
+                    log.warning(f"sync_bucket: overwrote conflicting property ${name} (old={old_line!r} new={prop.strip()!r})")
+                    prop_updates.append((idx, prop))
+                    continue
             # New property: drop any lines (e.g. reused comment) already in central
             new_props.extend(l for l in seg_lines if l.strip() not in central_content)
 
-    if not new_props and not new_methods:
+    if not new_props and not new_methods and not prop_updates:
         print("bucket.php: project has no new content, central unchanged.")
         return central_path
+
+    for idx, new_line in prop_updates:
+        central_lines[idx] = new_line
 
     # Locate insertion points in central:
     #   prop_insert_idx  — just before the first method section (its leading comment if any)

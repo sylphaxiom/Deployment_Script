@@ -18,6 +18,11 @@ DEV_BASE = Path.join(ROOT_BASE,"_DEV\\")
 PROD_BASE = Path.join(ROOT_BASE,"_PROD\\")
 API_BASE = Path.join(ROOT_BASE,"_API\\")
 
+# Single persistent master bucket.php, aggregated across every project's
+# bucket.php. Lives directly under API_BASE (not under any per-project
+# api_path) so cache_files()/deploy_files() never move or overwrite it.
+MASTER_BUCKET = Path.join(API_BASE,"bucket.php")
+
 DEV_CACHE = Path.join(DEV_BASE,"_cache\\")
 WAMP_CACHE = Path.join(WAMP_BASE,"_cache\\")
 PROD_CACHE = Path.join(PROD_BASE,"_cache\\")
