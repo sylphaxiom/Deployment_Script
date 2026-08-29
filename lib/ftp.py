@@ -12,6 +12,71 @@ from lib.config import PROD_REMOTE, DEV_REMOTE, DND_REMOTE, API_SECURE, MASTER_B
 log = logging.getLogger(__name__)
 
 PROP_NAME_RE = re.compile(r'\$(\w+)')
+METHOD_NAME_RE = re.compile(r'public static function\s+(\w+)')
+# Matches a PHP single- or double-quoted string literal (with \-escapes), so
+# brace-counting can ignore literal { / } characters inside secret values.
+_PHP_STRING_RE = re.compile(r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"")
+
+
+def _brace_counts(s):
+    """(open, close) brace counts for a line, ignoring braces inside PHP string literals."""
+    code = _PHP_STRING_RE.sub('', s)
+    return code.count('{'), code.count('}')
+
+
+def _find_central_methods(central_lines):
+    """Map method name -> (start_idx, end_idx) inclusive line span in central_lines."""
+    methods = {}
+    in_method = False
+    start_idx = None
+    name = None
+    saw_open_brace = False
+    brace_depth = 0
+
+    for i, line in enumerate(central_lines):
+        s = line.strip()
+        if not in_method:
+            if 'public static function' in s:
+                m = METHOD_NAME_RE.search(s)
+                name = m.group(1) if m else None
+                start_idx = i
+                in_method = True
+                o, c = _brace_counts(s)
+                brace_depth = o - c
+                saw_open_brace = brace_depth > 0
+                if saw_open_brace and brace_depth <= 0:
+                    if name:
+                        methods[name] = (start_idx, i)
+                    in_method = False
+            continue
+
+        o, c = _brace_counts(s)
+        brace_depth += o - c
+        if o > 0:
+            saw_open_brace = True
+        if saw_open_brace and brace_depth <= 0:
+            if name:
+                methods[name] = (start_idx, i)
+            in_method = False
+
+    return methods
+
+
+def _normalize_method_body(lines):
+    """Structural content of a method's lines, ignoring brace-placement style,
+    blank lines, and comments — for comparing two method bodies for real
+    (not just stylistic) differences."""
+    normalized = []
+    for line in lines:
+        s = line.strip()
+        if not s or s.startswith('//'):
+            continue
+        if s in ('{', '}'):
+            continue
+        if s.endswith('{'):
+            s = s[:-1].rstrip()
+        normalized.append(s)
+    return normalized
 
 def sync_bucket(cfg, project_bucket_path):
     central_path = MASTER_BUCKET
@@ -41,6 +106,10 @@ def sync_bucket(cfg, project_bucket_path):
             if m:
                 central_prop_index[m.group(1)] = i
 
+    # Map method name -> (start_idx, end_idx) span in central, for the same
+    # same-name-different-content conflict handling as properties.
+    central_methods = _find_central_methods(central_lines)
+
     # Parse project file into typed segments: ('prop'|'method', [lines])
     # A segment = the // comment(s) immediately preceding a declaration + the
     # declaration itself (and full body for methods). This preserves the comment
@@ -67,8 +136,9 @@ def sync_bucket(cfg, project_bucket_path):
         # Inside a method body: accumulate until the matching closing brace
         if in_method:
             current_seg_lines.append(line)
-            brace_depth += s.count('{') - s.count('}')
-            if s.count('{') > 0:
+            o, c = _brace_counts(s)
+            brace_depth += o - c
+            if o > 0:
                 saw_open_brace = True
             if saw_open_brace and brace_depth <= 0:
                 segments.append(('method', current_seg_lines[:]))
@@ -88,7 +158,8 @@ def sync_bucket(cfg, project_bucket_path):
             current_seg_lines = pending_comments + [line]
             pending_comments = []
             in_method = True
-            brace_depth = s.count('{') - s.count('}')
+            o, c = _brace_counts(s)
+            brace_depth = o - c
             if brace_depth > 0:
                 saw_open_brace = True
             continue
@@ -106,13 +177,28 @@ def sync_bucket(cfg, project_bucket_path):
     # For methods include the full body; for properties strip lines already present.
     new_props = []
     new_methods = []
-    prop_updates = []  # (central_line_index, new_line) — same name, changed value
+    prop_updates = []    # (central_line_index, new_line) — same name, changed value
+    method_updates = []  # (start_idx, end_idx, new_lines) — same name, changed body
 
     for seg_type, seg_lines in segments:
         if seg_type == 'method':
             decl = next((l for l in seg_lines if 'public static function' in l), None)
-            if decl and decl.strip() in central_content:
-                continue  # method already in central
+            m = METHOD_NAME_RE.search(decl.strip()) if decl else None
+            name = m.group(1) if m else None
+            if name and name in central_methods:
+                start_idx, end_idx = central_methods[name]
+                existing_lines = central_lines[start_idx:end_idx + 1]
+                if _normalize_method_body(existing_lines) == _normalize_method_body(seg_lines):
+                    continue  # same content, formatting-only difference at most
+                # Same method name, different body: latest deploy wins, but this
+                # can silently change behavior every other project relying on it
+                # shares, so it's always flagged loudly (mirrors property policy).
+                print(f"WARNING: bucket.php method {name}() body changed by this deploy.")
+                log.warning(f"sync_bucket: overwrote conflicting method {name}() body")
+                filtered = [l for l in seg_lines
+                            if not l.strip().startswith('//') or l.strip() not in central_content]
+                method_updates.append((start_idx, end_idx, filtered))
+                continue
             # New method: keep all code lines; drop any comments duplicated in central
             filtered = [l for l in seg_lines
                         if not l.strip().startswith('//') or l.strip() not in central_content]
@@ -139,12 +225,17 @@ def sync_bucket(cfg, project_bucket_path):
             # New property: drop any lines (e.g. reused comment) already in central
             new_props.extend(l for l in seg_lines if l.strip() not in central_content)
 
-    if not new_props and not new_methods and not prop_updates:
+    if not new_props and not new_methods and not prop_updates and not method_updates:
         print("bucket.php: project has no new content, central unchanged.")
         return central_path
 
     for idx, new_line in prop_updates:
         central_lines[idx] = new_line
+
+    # Apply in reverse start order so earlier (still-pending) spans' indices
+    # stay valid as later spans are spliced in place.
+    for start_idx, end_idx, new_lines in sorted(method_updates, key=lambda t: t[0], reverse=True):
+        central_lines[start_idx:end_idx + 1] = new_lines
 
     # Locate insertion points in central:
     #   prop_insert_idx  — just before the first method section (its leading comment if any)
@@ -177,8 +268,10 @@ def sync_bucket(cfg, project_bucket_path):
     with open(central_path, 'w') as f:
         f.writelines(result)
 
-    log.debug(f'sync_bucket: inserted {len(new_props)} property line(s), {len(new_methods)} method line(s)')
-    print(f"bucket.php: merged {len(new_props)} new property line(s) and {len(new_methods)} new method line(s) into central.")
+    log.debug(f'sync_bucket: inserted {len(new_props)} property line(s), {len(new_methods)} method line(s), '
+              f'updated {len(prop_updates)} propert(y/ies), {len(method_updates)} method(s)')
+    print(f"bucket.php: merged {len(new_props)} new property line(s), {len(new_methods)} new method line(s), "
+          f"{len(prop_updates)} property update(s), {len(method_updates)} method update(s) into central.")
     return central_path
 
 def ftp_prod(cfg):
