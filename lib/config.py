@@ -5,6 +5,8 @@ import os.path as Path
 import posixpath as Unx
 import logging
 
+from lib.remote import Target, load_target, target_key
+
 log = logging.getLogger(__name__)
 
 # Define global paths
@@ -52,6 +54,8 @@ class Config:
     w_cache: str = ""
     p_cache: str = ""
     a_cache: str = ""
+    # Remote deploy target from <repo>/deploy.json — None only when nothing is uploaded
+    target: Target | None = None
 
     def __post_init__(self):
         self.path_base = Path.join(ROOT_BASE, self.project)
@@ -75,6 +79,18 @@ class Config:
             log.error(f'Additional error information: {e}')
             print('An error has occurred in setup(), please see the logs for details.')
             raise e
+
+        # Resolve the remote target now, before tsc/build/staging run, so a
+        # missing or wrong deploy.json stops the run before anything changes.
+        key = target_key(self)
+        if key:
+            try:
+                self.target = load_target(self.path_base, key)
+            except (OSError, KeyError, ValueError) as e:
+                log.error(f'Could not load remote deploy target: {e}')
+                print(f'ERROR: {e}')
+                raise SystemExit(1)
+            print(f"Deploy target '{key}': {self.target.site.protocol}://{self.target.site.host}{self.target.remote}")
 
 # Parse CLI arguments
 def parse_args():
